@@ -1,54 +1,45 @@
 class Session
 
-    attr_accessor :zipcode, :metal_level, :rate_area, :rate, :plans
-
-    def initialize 
-        @plans = []
-    end
-
-    def call 
-        set_zipcode
-        # set_level
-        # set_rate_area
-        # find_plans
-        # set_rate
-        # print_plan
-    end
-
-
-    def set_zipcode
-        puts "Please enter a zipcode"
-        @zipcode = gets.strip
-    end
-
-    def set_level
-        puts "Please enter a 'gold', 'silver', 'bronze'"
-        @metal_level = gets.strip
-    end
-
-    def set_rate_area
-        csv_zips = File.read('zips.csv')
-        csv = CSV.parse(csv_zips, :headers => true)
-        csv.each do |row| 
-            @rate_area = row[:rate_area] if row[:zipcode] == @zipcode
-        end 
-    end
-
-    def find_plans
-        csv_plans = File.read('plans.csv')
-        csv = CSV.parse(csv_plans, :headers => true)
-        csv.each do |row| 
-            @plans << row[:rate] if row[:rate_area] == @rate_area && row[:metal_level] == @metal_level
+    def update_rates
+        Plan.get_plans
+        new_file = []
+        csv = CSV.read('slcsp.csv', headers: true)
+        csv.each_with_index do |row, i|
+            area = find_rate_area(row['zipcode'])
+            plans = area[:id].size == 1 ? find_plans(area) : []
+            row['rate'] = plans.sort[1].to_f if plans.size > 1
+            row['zipcode'] = row['zipcode'].to_i
+            new_file << row
+            puts row
         end
+        CSV.open('new_slcsp.csv', 'wb') do |csv| 
+            csv << ["zipcode","rate"]
+            new_file.each { |row| csv << row }
+        end
+        puts "Checkout your new file named: new_slcsp.csv"
     end 
 
-    def set_rate
-        @rate = self.all.sort[-2] || nil
+    def find_rate_area(zip)
+        area = {:id => [], :st => []}
+        csv_zips = File.read('zips.csv')
+        csv = CSV.parse(csv_zips, :headers => true)
+        csv.each do |row|
+            if row['zipcode'] == zip
+                area[:id] << row['rate_area'] 
+                area[:st] << row['state'] 
+            end
+        end 
+        area
     end
 
-    def print_plan
-        puts "#{@zipcode}, #{@rate}"
+    def find_plans(area)
+        id = area[:id].first
+        st = area[:st].first
+        plans = []
+        Plan.all.each do |plan| 
+            plans << plan.rate.to_f if plan.area == id && plan.state == st && !plans.include?(plan.rate)
+        end
+        plans
     end
+    
 end
-
-
